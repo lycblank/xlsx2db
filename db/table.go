@@ -55,7 +55,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	}
 	buf.WriteString("\tVersion int32 `gorm:\"column:version\"`\n")
 	buf.WriteString("\tCreateTime int64 `gorm:\"column:create_time\"`\n")
-	buf.WriteString("\tDeleted int32 `gorm:\"column:deleted;comment:1:表示已删除，2:表示未删除\"`\n")
+	buf.WriteString("\tDeleted int32 `gorm:\"column:deleted;comment:1:表示已删除，0:表示未删除\"`\n")
 	buf.WriteString("\tDeleteTime int64 `gorm:\"column:delete_time\"`\n")
 	buf.WriteString("}\n")
 
@@ -65,8 +65,6 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) SyncScheme(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\treturn gdb.AutoMigrate(%s)\n", shortName))
 	buf.WriteString(fmt.Sprintf("}\n"))
-
-
 
 	// TableName
 	buf.WriteString(fmt.Sprintf("\nfunc (%s) TableName() string {\n", t.Name))
@@ -82,6 +80,11 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		buf.WriteString(fmt.Sprintf("\tbuf.WriteString(fmt.Sprint(%s.%s))\n", shortName, elem))
 	}
 	buf.WriteString(fmt.Sprintf("\treturn buf.String()\n"))
+	buf.WriteString(fmt.Sprintf("}\n"))
+
+	// OK
+	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) OK() bool {\n", shortName, t.Name))
+	buf.WriteString(fmt.Sprintf("\treturn %s.%s == 0\n"))
 	buf.WriteString(fmt.Sprintf("}\n"))
 
 	// Find
@@ -122,7 +125,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	for idx, field := range t.Fields {
 		switch field.TypeName {
 		case "string":
-			buf.WriteString(fmt.Sprintf("\t%s.%s = cmd%d.Value\n", shortName, field.Name, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = cmd%d.Val()\n", shortName, field.Name, idx+1))
 		case "int64":
 			buf.WriteString(fmt.Sprintf("\t%s.%s, _ = cmd%d.Int64()\n", shortName, field.Name, idx+1))
 		case "int32":
@@ -170,7 +173,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		buf.WriteString(fmt.Sprintf("\t\t}\n"))
 		switch field.TypeName {
 		case "string":
-			buf.WriteString(fmt.Sprintf("\t\t%s.%s = cmds[0].(*redis.StringCmd).Value\n", shortName, field.Name))
+			buf.WriteString(fmt.Sprintf("\t\t%s.%s = cmds[0].(*redis.StringCmd).Val()\n", shortName, field.Name))
 		case "int64":
 			buf.WriteString(fmt.Sprintf("\t\t%s.%s, _ = cmds[0].(*redis.StringCmd).Int64()\n", shortName, field.Name))
 		case "int32":
