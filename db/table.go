@@ -84,7 +84,12 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	// OK
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) OK() bool {\n", shortName, t.Name))
-	buf.WriteString(fmt.Sprintf("\treturn %s.%s == 0\n"))
+	buf.WriteString(fmt.Sprintf("\treturn %s.Deleted == 0\n", shortName))
+	buf.WriteString(fmt.Sprintf("}\n"))
+
+	// Sync
+	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) Sync(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
+	buf.WriteString(fmt.Sprintf("\treturn gdb.Save(%s).Error\n", shortName))
 	buf.WriteString(fmt.Sprintf("}\n"))
 
 	// Find
@@ -115,9 +120,6 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\tpipe := rdb.Pipeline()\n"))
 	for idx, field := range t.Fields {
 		buf.WriteString(fmt.Sprintf("\tcmd%d := pipe.HGet(ctx, dataKey, \"%s\")\n", idx+1, SnakeName(field.Name)))
-		buf.WriteString(fmt.Sprintf("\tif err := pipe.Process(ctx, cmd%d); err != nil {\n", idx+1))
-		buf.WriteString(fmt.Sprintf("\t\t return err\n"))
-		buf.WriteString(fmt.Sprintf("\t}\n"))
 	}
 	buf.WriteString(fmt.Sprintf("\tif _, err := pipe.Exec(ctx); err != nil {\n"))
 	buf.WriteString(fmt.Sprintf("\t\t return err\n"))
@@ -140,11 +142,8 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) SaveCache(ctx context.Context, rdb *redis.Client) error {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\tdataKey := %s.DataKey()\n", shortName))
 	buf.WriteString(fmt.Sprintf("\tpipe := rdb.Pipeline()\n"))
-	for idx, field := range t.Fields {
-		buf.WriteString(fmt.Sprintf("\tcmd%d := pipe.HSet(ctx, dataKey, \"%s\", %s.%s)\n", idx+1, SnakeName(field.Name), shortName, field.Name))
-		buf.WriteString(fmt.Sprintf("\tif err := pipe.Process(ctx, cmd%d); err != nil {\n", idx+1))
-		buf.WriteString(fmt.Sprintf("\t\t return err\n"))
-		buf.WriteString(fmt.Sprintf("\t}\n"))
+	for _, field := range t.Fields {
+		buf.WriteString(fmt.Sprintf("\tpipe.HSet(ctx, dataKey, \"%s\", %s.%s)\n", SnakeName(field.Name), shortName, field.Name))
 	}
 	buf.WriteString(fmt.Sprintf("\tif _, err := pipe.Exec(ctx); err != nil {\n"))
 	buf.WriteString(fmt.Sprintf("\t\t return err\n"))
@@ -155,11 +154,8 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	// SetReadRedisCmd
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) SetReadRedisCmd(ctx context.Context, pipe *redis.Pipeline) error {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\tdataKey := %s.DataKey()\n", shortName))
-	for idx, field := range t.Fields {
-		buf.WriteString(fmt.Sprintf("\tcmd%d := pipe.HGet(ctx, dataKey, \"%s\")\n", idx+1, SnakeName(field.Name)))
-		buf.WriteString(fmt.Sprintf("\tif err := pipe.Process(ctx, cmd%d); err != nil {\n", idx+1))
-		buf.WriteString(fmt.Sprintf("\t\t return err\n"))
-		buf.WriteString(fmt.Sprintf("\t}\n"))
+	for _, field := range t.Fields {
+		buf.WriteString(fmt.Sprintf("\tpipe.HGet(ctx, dataKey, \"%s\")\n", SnakeName(field.Name)))
 	}
 	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
 	buf.WriteString(fmt.Sprintf("}\n"))

@@ -50,7 +50,7 @@ func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir
 		return err
 	}
 	for i,cnt:=0,len(tables);i<cnt;i++{
-		filename := fmt.Sprintf("%s.go", tables[i].Name)
+		filename := fmt.Sprintf("%s.go", SnakeName(tables[i].Name))
 		if err := tables[i].Write(filepath.Join(targetDir, filename), pkgName); err != nil {
 			return err
 		}
