@@ -12,6 +12,8 @@ type XLSXLine struct {
 	FieldComment string
 	IsPrimaryKey bool
 	IsCacheKeyElem bool
+	IsAutoIncrement bool
+	UniqueIndexName string
 }
 
 type Field struct {

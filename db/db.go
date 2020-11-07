@@ -19,17 +19,17 @@ func GetXLSXLine(r *xlsx.Row) XLSXLine {
 		case 1:
 			line.FieldTypeName = c.Value
 		case 2:
-			val := c.Value
-			if c.Value == "" {
-				val = line.FieldTypeName
-			}
-			line.DBFieldTypeName = val
+			line.DBFieldTypeName = c.Value
 		case 3:
 			line.IsPrimaryKey = c.Value == "1"
 		case 4:
 			line.IsCacheKeyElem = c.Value == "1"
 		case 5:
 			line.FieldComment = c.Value
+		case 6:
+			line.IsAutoIncrement = c.Value == "1"
+		case 7:
+			line.UniqueIndexName = c.Value
 		}
 		num++
 		return nil

@@ -1,11 +1,14 @@
 package db
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"github.com/tealeg/xlsx/v3"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 )
 
 type Gorm struct {
@@ -23,7 +26,24 @@ func NewGorm(parser XLSXParser) *Gorm {
 }
 
 func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir string, pkgName string) error {
-	err := filepath.Walk(xlsxDir, func(path string, info os.FileInfo, err error) error {
+	// db file
+	dbfilename := path.Join(targetDir, "db.go")
+	f, err := os.OpenFile(dbfilename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	dbBuff := bufio.NewWriter(f)
+	defer dbBuff.Flush()
+	dbBuff.WriteString("package ")
+	dbBuff.WriteString(pkgName)
+	dbBuff.WriteString("\n\n")
+	dbBuff.WriteString("import (\n")
+	dbBuff.WriteString("\t\"gorm.io/gorm\"\n")
+	dbBuff.WriteString("\t\"context\"\n")
+	dbBuff.WriteString(")\n\n")
+	dbBuff.WriteString("func Init(gdb *gorm.DB) {\n")
+	err = filepath.Walk(xlsxDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -38,13 +58,15 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 		if ext != ".xlsx" && ext != ".xls" { // 不是excel文件
 			return nil
 		}
-		err = g.TransXLSXFile(ctx, path, targetDir, pkgName)
+		err = g.TransXLSXFile(ctx, path, targetDir, pkgName, dbBuff)
 		return err
 	})
+	dbBuff.WriteString("}\n")
 	return err
 }
 
-func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir string, pkgName string) error {
+func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir string,
+	pkgName string, dbBuff *bufio.Writer) error {
 	tables, err := g.GetTables(ctx, xlsxFileName)
 	if err != nil {
 		return err
@@ -54,6 +76,9 @@ func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir
 		if err := tables[i].Write(filepath.Join(targetDir, filename), pkgName); err != nil {
 			return err
 		}
+		dbBuff.WriteString("\t(&")
+		dbBuff.WriteString(tables[i].Name)
+		dbBuff.WriteString("{}).SyncScheme(context.Background(), gdb)\n")
 	}
 	return nil
 }
@@ -69,6 +94,7 @@ func (g *Gorm) GetTables(ctx context.Context, xlsxFileName string) ([]Table, err
 		if err != nil {
 			return tables, err
 		}
+		fmt.Printf("export %s:%s\n", strings.Split(path.Base(xlsxFileName), ".")[0], sheet.Name)
 		tables = append(tables, table)
 	}
 	return tables, nil
@@ -109,7 +135,6 @@ func (g *Gorm) getTable(ctx context.Context, sheet *xlsx.Sheet) (Table, error) {
 		row++
 		return nil
 	})
-	fmt.Println(table)
 	return table, err
 }
 

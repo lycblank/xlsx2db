@@ -1,8 +1,8 @@
 package db
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 )
 
 type goParser struct {
@@ -20,12 +20,40 @@ func (g *goParser) Parse(ctx context.Context, line XLSXLine) (field Field, err e
 	gormTag := FieldTagInfo{
 		Key:"gorm",
 	}
+	var buf bytes.Buffer
+	buf.WriteString("column:")
+	buf.WriteString(line.FieldName)
 	if line.IsPrimaryKey {
-		gormTag.Value = fmt.Sprintf("column:%s;primaryKey;comment:%s", line.FieldName, line.FieldComment)
-	} else {
-		gormTag.Value = fmt.Sprintf("column:%s;comment:%s", line.FieldName, line.FieldComment)
+		buf.WriteString(";primaryKey")
 	}
+
+	if line.IsAutoIncrement {
+		buf.WriteString(";autoIncrement")
+	}
+
+	if line.UniqueIndexName != "" {
+		buf.WriteString(";uniqueIndex:")
+		buf.WriteString(line.UniqueIndexName)
+	}
+	if line.DBFieldTypeName != "" {
+		buf.WriteString(";")
+		buf.WriteString(line.DBFieldTypeName)
+	}
+
+	if line.FieldComment != "" {
+		buf.WriteString(";comment:")
+		buf.WriteString(line.FieldComment)
+	}
+
+	gormTag.Value = buf.String()
 	field.TagList = append(field.TagList, gormTag)
+
+	// jsonTag
+	jsonTag := FieldTagInfo{
+		Key:"json",
+	}
+	jsonTag.Value = line.FieldName
+	field.TagList = append(field.TagList, jsonTag)
 	return field, nil
 }
 

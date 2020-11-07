@@ -19,7 +19,11 @@ func main() {
 		panic("目的目录不存在")
 	}
 	g := db.NewGorm(nil)
-	fmt.Println(g.TransXLSXDir(context.Background(), *src, *dst, *pkg))
+	if err := g.TransXLSXDir(context.Background(), *src, *dst, *pkg); err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("success")
+	}
 	return
 }
 
