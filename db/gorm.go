@@ -2,6 +2,7 @@ package db
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/tealeg/xlsx/v3"
@@ -35,14 +36,12 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 	defer f.Close()
 	dbBuff := bufio.NewWriter(f)
 	defer dbBuff.Flush()
-	dbBuff.WriteString("package ")
-	dbBuff.WriteString(pkgName)
-	dbBuff.WriteString("\n\n")
-	dbBuff.WriteString("import (\n")
-	dbBuff.WriteString("\t\"gorm.io/gorm\"\n")
-	dbBuff.WriteString("\t\"context\"\n")
-	dbBuff.WriteString(")\n\n")
-	dbBuff.WriteString("func Init(gdb *gorm.DB) {\n")
+
+	cfg := TransXLSXFileConfig{
+		DBFileImport:&bytes.Buffer{},
+		DBFileFuncInit :&bytes.Buffer{},
+		DBFileMapData: &bytes.Buffer{},
+	}
 	err = filepath.Walk(xlsxDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -58,15 +57,102 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 		if ext != ".xlsx" && ext != ".xls" { // 不是excel文件
 			return nil
 		}
-		err = g.TransXLSXFile(ctx, path, targetDir, pkgName, dbBuff)
+		err = g.TransXLSXFile(ctx, path, targetDir, pkgName, cfg)
 		return err
 	})
+
+	dbBuff.WriteString("package ")
+	dbBuff.WriteString(pkgName)
+
+	dbBuff.WriteString("\n\n")
+	dbBuff.WriteString("import (\n")
+	dbBuff.WriteString("\t\"gorm.io/gorm\"\n")
+	dbBuff.WriteString("\t\"context\"\n")
+	dbBuff.WriteString("\t\"reflect\"\n")
+	dbBuff.WriteString("\t\"github.com/golang/protobuf/proto\"\n")
+	dbBuff.WriteString("\t\"github.com/go-redis/redis/v8\"\n")
+	dbBuff.WriteString("\tprotocol \"github.com/withlin/canal-go/protocol\"\n")
+
+	if cfg.DBFileImport.Len() > 0 {
+		dbBuff.WriteString(cfg.DBFileImport.String())
+	}
+	dbBuff.WriteString(")\n\n")
+
+	dbBuff.WriteString("type Data interface{\n")
+	dbBuff.WriteString("\tParseCanalEntryColumns(ctx context.Context, columns []*protocol.Column) error\n")
+	dbBuff.WriteString("\tDataKey() string\n")
 	dbBuff.WriteString("}\n")
+
+	if cfg.DBFileFuncInit.Len() > 0 {
+		dbBuff.WriteString("func Init(gdb *gorm.DB) {\n")
+		dbBuff.WriteString(cfg.DBFileFuncInit.String())
+		dbBuff.WriteString("}\n")
+	}
+
+	if cfg.DBFileMapData.Len() > 0 {
+		dbBuff.WriteString("var datas = map[string]reflect.Type{\n")
+		dbBuff.WriteString(cfg.DBFileMapData.String())
+		dbBuff.WriteString("}\n")
+	}
+
+	dbBuff.WriteString(fmt.Sprintf("func DelCache(ctx context.Context, entrys []protocol.Entry, rdb *redis.Client) {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\tpipe := rdb.Pipeline()\n"))
+	dbBuff.WriteString(fmt.Sprintf("\tdefer pipe.Close()\n"))
+	dbBuff.WriteString(fmt.Sprintf("\tfor _, entry := range entrys {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tentryType := entry.GetEntryType()\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tif entryType == protocol.EntryType_TRANSACTIONBEGIN || entryType == protocol.EntryType_TRANSACTIONEND {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\ttableName := entry.GetHeader().GetTableName()\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tdataType, ok := datas[tableName]\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tif !ok {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\trowChange := new(protocol.RowChange)\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tif err := proto.Unmarshal(entry.GetStoreValue(), rowChange); err != nil {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\teventType := rowChange.GetEventType()\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\tfor _, rowData := range rowChange.GetRowDatas() {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\tif eventType == protocol.EventType_DELETE {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tval := reflect.New(dataType).Interface().(Data)\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tif err := val.ParseCanalEntryColumns(ctx, rowData.GetBeforeColumns()); err != nil {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tpipe.Del(ctx, val.DataKey())\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t} else if eventType == protocol.EventType_INSERT {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tval := reflect.New(dataType).Interface().(Data)\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tif err := val.ParseCanalEntryColumns(ctx, rowData.GetAfterColumns()); err != nil {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tpipe.Del(ctx, val.DataKey())\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t} else {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tval := reflect.New(dataType).Interface().(Data)\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tif err := val.ParseCanalEntryColumns(ctx, rowData.GetBeforeColumns()); err != nil {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tpipe.Del(ctx, val.DataKey())\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tval = reflect.New(dataType).Interface().(Data)\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tif err := val.ParseCanalEntryColumns(ctx, rowData.GetAfterColumns()); err != nil {\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t\tcontinue\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t\tpipe.Del(ctx, val.DataKey())\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\t}\n"))
+	dbBuff.WriteString(fmt.Sprintf("\tpipe.Exec(ctx)\n"))
+	dbBuff.WriteString(fmt.Sprintf("}\n"))
 	return err
 }
 
+type TransXLSXFileConfig struct {
+	DBFileImport *bytes.Buffer
+	DBFileFuncInit *bytes.Buffer
+	DBFileMapData *bytes.Buffer
+}
+
 func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir string,
-	pkgName string, dbBuff *bufio.Writer) error {
+	pkgName string, cfg TransXLSXFileConfig) error {
 	tables, err := g.GetTables(ctx, xlsxFileName)
 	if err != nil {
 		return err
@@ -76,9 +162,15 @@ func (g *Gorm) TransXLSXFile(ctx context.Context, xlsxFileName string, targetDir
 		if err := tables[i].Write(filepath.Join(targetDir, filename), pkgName); err != nil {
 			return err
 		}
-		dbBuff.WriteString("\t(&")
-		dbBuff.WriteString(tables[i].Name)
-		dbBuff.WriteString("{}).SyncScheme(context.Background(), gdb)\n")
+		if cfg.DBFileFuncInit != nil {
+			cfg.DBFileFuncInit.WriteString("\t(&")
+			cfg.DBFileFuncInit.WriteString(tables[i].Name)
+			cfg.DBFileFuncInit.WriteString("{}).SyncScheme(context.Background(), gdb)\n")
+		}
+		if cfg.DBFileMapData != nil {
+			cfg.DBFileMapData.WriteString(fmt.Sprintf("\t\"%s\":reflect.TypeOf(&%s{}).Elem(),\n",
+				SnakeName(tables[i].Name), CaseName(tables[i].Name)))
+		}
 	}
 	return nil
 }

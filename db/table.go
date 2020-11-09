@@ -41,7 +41,9 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString("\t\"bytes\"\n")
 	buf.WriteString("\t\"fmt\"\n")
 	buf.WriteString("\t\"context\"\n")
+	buf.WriteString("\t\"strconv\"\n")
 	buf.WriteString("\t\"github.com/go-redis/redis/v8\"\n")
+	buf.WriteString("\tprotocol \"github.com/withlin/canal-go/protocol\"\n")
 	buf.WriteString(")\n\n")
 
 	// struct
@@ -53,10 +55,10 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		buf.WriteString(t.Fields[i].String())
 		buf.WriteString("\n")
 	}
-	buf.WriteString("\tVersion int32 `gorm:\"column:version\"`\n")
-	buf.WriteString("\tCreateTime int64 `gorm:\"column:create_time\"`\n")
-	buf.WriteString("\tDeleted int32 `gorm:\"column:deleted;comment:1:表示已删除，0:表示未删除\"`\n")
-	buf.WriteString("\tDeleteTime int64 `gorm:\"column:delete_time\"`\n")
+	buf.WriteString("\tVersion int32 `gorm:\"column:version\" json:\"version\"`\n")
+	buf.WriteString("\tCreateTime int64 `gorm:\"column:create_time\" json:\"create_time\"`\n")
+	buf.WriteString("\tDeleted int32 `gorm:\"column:deleted;comment:1:表示已删除，0:表示未删除\" json:\"deleted\"`\n")
+	buf.WriteString("\tDeleteTime int64 `gorm:\"column:delete_time\"json:\"delete_time\"`\n")
 	buf.WriteString("}\n")
 
 	shortName := SnakeName(t.Name[:1])
@@ -181,6 +183,58 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	}
 	buf.WriteString(fmt.Sprintf("\treturn cmds, err\n"))
 	buf.WriteString(fmt.Sprintf("}\n"))
+
+	// ParseCanalEntryColumns
+	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) ParseCanalEntryColumns(ctx context.Context, columns []*protocol.Column) error {\n", shortName, t.Name))
+	//buf.WriteString(fmt.Sprintf("\tif entry.GetEntryType() == protocol.EntryType_TRANSACTIONBEGIN || entry.GetEntryType() == protocol.EntryType_TRANSACTIONEND {\n"))
+	//buf.WriteString(fmt.Sprintf("\t\treturn errors.New(\"entry type is trans header\")\n"))
+	//buf.WriteString(fmt.Sprintf("\t}\n"))
+	//buf.WriteString(fmt.Sprintf("\trowChange := new(protocol.RowChange)\n"))
+	//buf.WriteString(fmt.Sprintf("\terr := proto.Unmarshal(entry.GetStoreValue(), rowChange)\n"))
+	//buf.WriteString(fmt.Sprintf("\tif err != nil {\n"))
+	//buf.WriteString(fmt.Sprintf("\t\treturn err\n"))
+	//buf.WriteString(fmt.Sprintf("\t}\n"))
+	//buf.WriteString(fmt.Sprintf("\teventType := rowChange.GetEventType()\n"))
+	//buf.WriteString(fmt.Sprintf("\tfor _, rowData := range rowChange.GetRowDatas() {\n"))
+	//buf.WriteString(fmt.Sprintf("\t\tswitch eventType {\n"))
+	//buf.WriteString(fmt.Sprintf("\t\t\tcase protocol.EventType_DELETE:\n"))
+	//buf.WriteString(fmt.Sprintf("\t\t\tcase protocol.EventType_INSERT:\n"))
+	//buf.WriteString(fmt.Sprintf("\t\t\tdefault:\n"))
+	//buf.WriteString(fmt.Sprintf("\t\t}\n"))
+	buf.WriteString(fmt.Sprintf("\tfor _, col := range columns {\n"))
+	buf.WriteString(fmt.Sprintf("\t\tk,v := col.GetName(), col.GetValue()\n"))
+	buf.WriteString(fmt.Sprintf("\t\tswitch k {\n"))
+	for _, field := range t.Fields {
+		buf.WriteString(fmt.Sprintf("\t\tcase \"%s\":\n", SnakeName(field.Name)))
+		if field.TypeName == "string" {
+			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = v\n", shortName, CaseName(field.Name)))
+		} else if field.TypeName == "int32" || field.TypeName == "int64" {
+			buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = %s(tmp)\n", shortName, CaseName(field.Name), field.TypeName))
+		} else {
+			panic(fmt.Sprintf("%s not support", field.TypeName))
+		}
+	}
+	buf.WriteString(fmt.Sprintf("\t\tcase \"version\":\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\t%s.Version = int32(tmp)\n", shortName))
+
+	buf.WriteString(fmt.Sprintf("\t\tcase \"create_time\":\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\t%s.CreateTime = tmp\n", shortName))
+
+	buf.WriteString(fmt.Sprintf("\t\tcase \"deleted\":\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\t%s.Deleted = int32(tmp)\n", shortName))
+
+	buf.WriteString(fmt.Sprintf("\t\tcase \"delete_time\":\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+	buf.WriteString(fmt.Sprintf("\t\t\t%s.DeleteTime = tmp\n", shortName))
+
+	buf.WriteString(fmt.Sprintf("\t\t}\n"))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
+	buf.WriteString("}\n")
 	return nil
 }
 
