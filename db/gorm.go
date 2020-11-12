@@ -78,6 +78,25 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 	}
 	dbBuff.WriteString(")\n\n")
 
+	dbBuff.WriteString("var gdb *gorm.DB\n")
+	dbBuff.WriteString("var rdb *redis.Client\n")
+	dbBuff.WriteString("func SetMysqlDB(db *gorm.DB) {\n")
+	dbBuff.WriteString("\tgdb = db\n")
+	dbBuff.WriteString("}\n")
+
+	dbBuff.WriteString("func SetRedisDB(db *redis.Client) {\n")
+	dbBuff.WriteString("\trdb = db\n")
+	dbBuff.WriteString("}\n")
+
+	dbBuff.WriteString("func GetMysqlDB() *gorm.DB {\n")
+	dbBuff.WriteString("\treturn gdb\n")
+	dbBuff.WriteString("}\n")
+
+	dbBuff.WriteString("func GetRedisDB() *redis.Client {\n")
+	dbBuff.WriteString("\treturn rdb\n")
+	dbBuff.WriteString("}\n")
+
+
 	dbBuff.WriteString("type Data interface{\n")
 	dbBuff.WriteString("\tParseCanalEntryColumns(ctx context.Context, columns []*protocol.Column) error\n")
 	dbBuff.WriteString("\tDataKey() string\n")

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
 type Table struct {
@@ -108,11 +107,11 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	// FindByDB根据主键查询
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) FindByDB(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
-	keys := make([]string, 0, len(t.PriKeyNames))
-	for _, key := range t.PriKeyNames {
-		keys = append(keys, fmt.Sprintf("%s.%s", shortName, key))
-	}
-	buf.WriteString(fmt.Sprintf("\terr := gdb.First(%s, %s).Error\n", shortName, strings.Join(keys, ",")))
+	//keys := make([]string, 0, len(t.PriKeyNames))
+	//for _, key := range t.PriKeyNames {
+	//	keys = append(keys, fmt.Sprintf("%s.%s", shortName, key))
+	//}
+	buf.WriteString(fmt.Sprintf("\terr := gdb.Where(%s).First(%s).Error\n", shortName, shortName))
 	buf.WriteString(fmt.Sprintf("\treturn err\n"))
 	buf.WriteString(fmt.Sprintf("}\n"))
 

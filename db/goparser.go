@@ -32,7 +32,7 @@ func (g *goParser) Parse(ctx context.Context, line XLSXLine) (field Field, err e
 	}
 
 	if line.UniqueIndexName != "" {
-		buf.WriteString(";uniqueIndex:")
+		buf.WriteString(";not null;uniqueIndex:")
 		buf.WriteString(line.UniqueIndexName)
 	}
 	if line.DBFieldTypeName != "" {
