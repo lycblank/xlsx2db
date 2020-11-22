@@ -100,6 +100,10 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 	dbBuff.WriteString("type Data interface{\n")
 	dbBuff.WriteString("\tParseCanalEntryColumns(ctx context.Context, columns []*protocol.Column) error\n")
 	dbBuff.WriteString("\tDataKey() string\n")
+	dbBuff.WriteString("\tSync(ctx context.Context, gdb *gorm.DB) error\n")
+	dbBuff.WriteString("\tFind(ctx context.Context, rdb *redis.Client, gdb *gorm.DB) error\n")
+	dbBuff.WriteString("\tFindByDB(ctx context.Context, gdb *gorm.DB) error\n")
+
 	dbBuff.WriteString("}\n")
 
 	if cfg.DBFileFuncInit.Len() > 0 {
@@ -231,17 +235,18 @@ func (g *Gorm) getTable(ctx context.Context, sheet *xlsx.Sheet) (Table, error) {
 		if line.FieldName == "" {
 			return nil
 		}
-		if line.IsPrimaryKey {
-			table.PriKeyNames = append(table.PriKeyNames, CaseName(line.FieldName))
-		}
-		if line.IsCacheKeyElem {
-			table.CacheKeyElem = append(table.CacheKeyElem, CaseName(line.FieldName))
-		}
 
 		field, err := g.parser.Parse(ctx, line)
 		if err != nil {
 			return err
 		}
+		if line.IsPrimaryKey {
+			table.PriKeyNames = append(table.PriKeyNames, field.GetName())
+		}
+		if line.IsCacheKeyElem {
+			table.CacheKeyElem = append(table.CacheKeyElem, field.GetName())
+		}
+
 		table.Fields = append(table.Fields, field)
 		row++
 		return nil

@@ -16,6 +16,7 @@ func NewGoParser() *goParser {
 func (g *goParser) Parse(ctx context.Context, line XLSXLine) (field Field, err error) {
 	field.Name = CaseName(line.FieldName)
 	field.TypeName = line.FieldTypeName
+	field.line = line
 	// gorm tag
 	gormTag := FieldTagInfo{
 		Key:"gorm",

@@ -128,12 +128,12 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	for idx, field := range t.Fields {
 		switch field.TypeName {
 		case "string":
-			buf.WriteString(fmt.Sprintf("\t%s.%s = cmd%d.Val()\n", shortName, field.Name, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = cmd%d.Val()\n", shortName, field.GetName(), idx+1))
 		case "int64":
-			buf.WriteString(fmt.Sprintf("\t%s.%s, _ = cmd%d.Int64()\n", shortName, field.Name, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s, _ = cmd%d.Int64()\n", shortName, field.GetName(), idx+1))
 		case "int32":
 			buf.WriteString(fmt.Sprintf("\tval, _ := cmd%d.Int64()\n", idx+1))
-			buf.WriteString(fmt.Sprintf("\t%s.%s = int32(val)\n", shortName, field.Name))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = int32(val)\n", shortName, field.GetName()))
 		}
 	}
 	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
@@ -144,7 +144,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\tdataKey := %s.DataKey()\n", shortName))
 	buf.WriteString(fmt.Sprintf("\tpipe := rdb.Pipeline()\n"))
 	for _, field := range t.Fields {
-		buf.WriteString(fmt.Sprintf("\tpipe.HSet(ctx, dataKey, \"%s\", %s.%s)\n", SnakeName(field.Name), shortName, field.Name))
+		buf.WriteString(fmt.Sprintf("\tpipe.HSet(ctx, dataKey, \"%s\", %s.%s)\n", SnakeName(field.Name), shortName, field.GetName()))
 	}
 	buf.WriteString(fmt.Sprintf("\tif _, err := pipe.Exec(ctx); err != nil {\n"))
 	buf.WriteString(fmt.Sprintf("\t\t return err\n"))
@@ -170,12 +170,12 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		buf.WriteString(fmt.Sprintf("\t\t}\n"))
 		switch field.TypeName {
 		case "string":
-			buf.WriteString(fmt.Sprintf("\t\t%s.%s = cmds[0].(*redis.StringCmd).Val()\n", shortName, field.Name))
+			buf.WriteString(fmt.Sprintf("\t\t%s.%s = cmds[0].(*redis.StringCmd).Val()\n", shortName, field.GetName()))
 		case "int64":
-			buf.WriteString(fmt.Sprintf("\t\t%s.%s, _ = cmds[0].(*redis.StringCmd).Int64()\n", shortName, field.Name))
+			buf.WriteString(fmt.Sprintf("\t\t%s.%s, _ = cmds[0].(*redis.StringCmd).Int64()\n", shortName, field.GetName()))
 		case "int32":
 			buf.WriteString(fmt.Sprintf("\t\tval, _ := cmds[0].(*redis.StringCmd).Int64()\n"))
-			buf.WriteString(fmt.Sprintf("\t\t%s.%s = int32(val)\n", shortName, field.Name))
+			buf.WriteString(fmt.Sprintf("\t\t%s.%s = int32(val)\n", shortName, field.GetName()))
 		}
 		buf.WriteString(fmt.Sprintf("\t\tcmds = cmds[1:]\n"))
 		buf.WriteString(fmt.Sprintf("\t}\n"))
@@ -206,10 +206,10 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	for _, field := range t.Fields {
 		buf.WriteString(fmt.Sprintf("\t\tcase \"%s\":\n", SnakeName(field.Name)))
 		if field.TypeName == "string" {
-			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = v\n", shortName, CaseName(field.Name)))
+			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = v\n", shortName, field.GetName()))
 		} else if field.TypeName == "int32" || field.TypeName == "int64" {
 			buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
-			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = %s(tmp)\n", shortName, CaseName(field.Name), field.TypeName))
+			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = %s(tmp)\n", shortName, field.GetName(), field.TypeName))
 		} else {
 			panic(fmt.Sprintf("%s not support", field.TypeName))
 		}

@@ -20,10 +20,22 @@ type Field struct {
 	Name string
 	TypeName string
 	TagList []FieldTagInfo
+	line XLSXLine
 }
 
 func (f Field) String() string {
-	return fmt.Sprintf("%s %s `%s`", f.Name, f.TypeName, FileTagInfoList(f.TagList))
+	return fmt.Sprintf("%s %s `%s`", f.GetName(), f.TypeName, FileTagInfoList(f.TagList))
+}
+
+func (f Field) GetName() string {
+	prefix := ""
+	if f.line.IsPrimaryKey {
+		prefix += "Pri"
+	}
+	if f.line.IsCacheKeyElem {
+		prefix += "Cache"
+	}
+	return prefix+f.Name
 }
 
 type FieldTagInfo struct {
