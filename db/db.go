@@ -23,12 +23,10 @@ func GetXLSXLine(r *xlsx.Row) XLSXLine {
 		case 3:
 			line.IsPrimaryKey = c.Value == "1"
 		case 4:
-			line.IsCacheKeyElem = c.Value == "1"
-		case 5:
 			line.FieldComment = c.Value
-		case 6:
+		case 5:
 			line.IsAutoIncrement = c.Value == "1"
-		case 7:
+		case 6:
 			line.UniqueIndexName = c.Value
 		}
 		num++

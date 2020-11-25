@@ -11,7 +11,6 @@ type XLSXLine struct {
 	DBFieldTypeName string
 	FieldComment string
 	IsPrimaryKey bool
-	IsCacheKeyElem bool
 	IsAutoIncrement bool
 	UniqueIndexName string
 }
@@ -29,12 +28,6 @@ func (f Field) String() string {
 
 func (f Field) GetName() string {
 	prefix := ""
-	if f.line.IsPrimaryKey {
-		prefix += "Pri"
-	}
-	if f.line.IsCacheKeyElem {
-		prefix += "Cache"
-	}
 	return prefix+f.Name
 }
 

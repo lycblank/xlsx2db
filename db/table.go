@@ -11,7 +11,6 @@ type Table struct {
 	Name string
 	Fields []Field
 	PriKeyNames []string
-	CacheKeyElem []string
 }
 
 func (t Table) Write(filename string, pkgName string) error {
@@ -76,7 +75,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) DataKey() string {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\tvar buf bytes.Buffer\n"))
 	buf.WriteString(fmt.Sprintf("\tbuf.WriteString(\"%s\")\n", SnakeName(t.Name)))
-	for _, elem := range t.CacheKeyElem {
+	for _, elem := range t.PriKeyNames {
 		buf.WriteString(fmt.Sprintf("\tbuf.WriteString(\":\")\n"))
 		buf.WriteString(fmt.Sprintf("\tbuf.WriteString(fmt.Sprint(%s.%s))\n", shortName, elem))
 	}
@@ -132,8 +131,8 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		case "int64":
 			buf.WriteString(fmt.Sprintf("\t%s.%s, _ = cmd%d.Int64()\n", shortName, field.GetName(), idx+1))
 		case "int32":
-			buf.WriteString(fmt.Sprintf("\tval, _ := cmd%d.Int64()\n", idx+1))
-			buf.WriteString(fmt.Sprintf("\t%s.%s = int32(val)\n", shortName, field.GetName()))
+			buf.WriteString(fmt.Sprintf("\tval%d, _ := cmd%d.Int64()\n", idx+1, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = int32(val%d)\n", shortName, field.GetName(), idx+1))
 		}
 	}
 	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
@@ -163,7 +162,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	// ParseRedisCmd
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) ParseRedisCmd(ctx context.Context, cmds []redis.Cmder) (cs []redis.Cmder, err error) {\n", shortName, t.Name))
-	for _, field := range t.Fields {
+	for idx, field := range t.Fields {
 		buf.WriteString(fmt.Sprintf("\tif len(cmds) > 0 {\n"))
 		buf.WriteString(fmt.Sprintf("\t\tif terr := cmds[0].Err(); terr != nil {\n"))
 		buf.WriteString(fmt.Sprintf("\t\t\terr = terr\n"))
@@ -174,8 +173,8 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		case "int64":
 			buf.WriteString(fmt.Sprintf("\t\t%s.%s, _ = cmds[0].(*redis.StringCmd).Int64()\n", shortName, field.GetName()))
 		case "int32":
-			buf.WriteString(fmt.Sprintf("\t\tval, _ := cmds[0].(*redis.StringCmd).Int64()\n"))
-			buf.WriteString(fmt.Sprintf("\t\t%s.%s = int32(val)\n", shortName, field.GetName()))
+			buf.WriteString(fmt.Sprintf("\t\tval%d, _ := cmds[0].(*redis.StringCmd).Int64()\n", idx+1))
+			buf.WriteString(fmt.Sprintf("\t\t%s.%s = int32(val%d)\n", shortName, field.GetName(), idx+1))
 		}
 		buf.WriteString(fmt.Sprintf("\t\tcmds = cmds[1:]\n"))
 		buf.WriteString(fmt.Sprintf("\t}\n"))

@@ -243,9 +243,6 @@ func (g *Gorm) getTable(ctx context.Context, sheet *xlsx.Sheet) (Table, error) {
 		if line.IsPrimaryKey {
 			table.PriKeyNames = append(table.PriKeyNames, field.GetName())
 		}
-		if line.IsCacheKeyElem {
-			table.CacheKeyElem = append(table.CacheKeyElem, field.GetName())
-		}
 
 		table.Fields = append(table.Fields, field)
 		row++
