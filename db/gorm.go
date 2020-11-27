@@ -69,6 +69,7 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 	dbBuff.WriteString("\t\"gorm.io/gorm\"\n")
 	dbBuff.WriteString("\t\"context\"\n")
 	dbBuff.WriteString("\t\"reflect\"\n")
+	dbBuff.WriteString("\t\"errors\"\n")
 	dbBuff.WriteString("\t\"github.com/golang/protobuf/proto\"\n")
 	dbBuff.WriteString("\t\"github.com/go-redis/redis/v8\"\n")
 	dbBuff.WriteString("\tprotocol \"github.com/withlin/canal-go/protocol\"\n")
@@ -77,6 +78,10 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 		dbBuff.WriteString(cfg.DBFileImport.String())
 	}
 	dbBuff.WriteString(")\n\n")
+
+	dbBuff.WriteString("var (\n")
+	dbBuff.WriteString("\tDBUpdateNullRecord = errors.New(\"update record affect zero\")\n")
+	dbBuff.WriteString(")\n")
 
 	dbBuff.WriteString("var gdb *gorm.DB\n")
 	dbBuff.WriteString("var rdb *redis.Client\n")
@@ -100,7 +105,8 @@ func (g *Gorm) TransXLSXDir(ctx context.Context, xlsxDir string, targetDir strin
 	dbBuff.WriteString("type Data interface{\n")
 	dbBuff.WriteString("\tParseCanalEntryColumns(ctx context.Context, columns []*protocol.Column) error\n")
 	dbBuff.WriteString("\tDataKey() string\n")
-	dbBuff.WriteString("\tSync(ctx context.Context, gdb *gorm.DB) error\n")
+	dbBuff.WriteString("\tUpdates(ctx context.Context, gdb *gorm.DB) error\n")
+	dbBuff.WriteString("\tCreate(ctx context.Context, gdb *gorm.DB) error\n")
 	dbBuff.WriteString("\tFind(ctx context.Context, rdb *redis.Client, gdb *gorm.DB) error\n")
 	dbBuff.WriteString("\tFindByDB(ctx context.Context, gdb *gorm.DB) error\n")
 

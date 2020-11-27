@@ -38,3 +38,14 @@ func CaseName(name string) string {
 	}
 	return buf.String()
 }
+
+func FirstLowerName(name string) string {
+	if len(name) <= 0 {
+		return name
+	}
+	datas := []byte(name)
+	if datas[0] >= 'A' && datas[0] <= 'Z' {
+		datas[0] += 'a' - 'A'
+	}
+	return string(datas)
+}

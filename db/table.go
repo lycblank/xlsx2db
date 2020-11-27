@@ -2,6 +2,7 @@ package db
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -61,6 +62,28 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	shortName := SnakeName(t.Name[:1])
 
+	var keyBuf bytes.Buffer
+	for _, filed := range t.Fields {
+		if filed.line.IsPrimaryKey {
+			keyBuf.WriteString(fmt.Sprintf(", %s %s", FirstLowerName(filed.Name), filed.TypeName))
+		}
+	}
+	buf.WriteString(fmt.Sprintf("func Get%sFromDataCache(dataCache DataCache%s) *%s{\n", t.Name, keyBuf.String(), t.Name))
+	buf.WriteString(fmt.Sprintf("\tval := &%s{\n", t.Name))
+	for _, filed := range t.Fields {
+		if filed.line.IsPrimaryKey {
+			buf.WriteString(fmt.Sprintf("\t\t%s:%s,\n", filed.Name, FirstLowerName(filed.Name)))
+		}
+	}
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\ttmp, err := dataCache.Get(context.Background(), val)\n"))
+	buf.WriteString(fmt.Sprintf("\tif err == nil {\n"))
+	buf.WriteString(fmt.Sprintf("\treturn tmp.(*%s)\n", t.Name))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\tval.FindByDB(context.Background(), gdb)\n"))
+	buf.WriteString(fmt.Sprintf("\treturn val\n"))
+	buf.WriteString(fmt.Sprintf("}"))
+
 	// SyncScheme
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) SyncScheme(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\treturn gdb.AutoMigrate(%s)\n", shortName))
@@ -87,11 +110,6 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\treturn %s.Deleted == 0\n", shortName))
 	buf.WriteString(fmt.Sprintf("}\n"))
 
-	// Sync
-	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) Sync(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
-	buf.WriteString(fmt.Sprintf("\treturn gdb.Save(%s).Error\n", shortName))
-	buf.WriteString(fmt.Sprintf("}\n"))
-
 	// Find
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) Find(ctx context.Context, rdb *redis.Client, gdb *gorm.DB) error {\n", shortName, t.Name))
 	buf.WriteString(fmt.Sprintf("\tif err := %s.FindByCache(ctx, rdb); err == nil {\n", shortName))
@@ -106,11 +124,36 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	// FindByDB根据主键查询
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) FindByDB(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
-	//keys := make([]string, 0, len(t.PriKeyNames))
-	//for _, key := range t.PriKeyNames {
-	//	keys = append(keys, fmt.Sprintf("%s.%s", shortName, key))
-	//}
 	buf.WriteString(fmt.Sprintf("\terr := gdb.Where(%s).First(%s).Error\n", shortName, shortName))
+	buf.WriteString(fmt.Sprintf("\treturn err\n"))
+	buf.WriteString(fmt.Sprintf("}\n"))
+
+	// Updates
+	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) Updates(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
+	buf.WriteString(fmt.Sprintf("\tver := %s.Version\n", shortName))
+	buf.WriteString(fmt.Sprintf("\t%s.Version += 1\n", shortName))
+	buf.WriteString(fmt.Sprintf("\tvals := map[string]interface{}{\n"))
+	for _, field := range t.Fields{
+		buf.WriteString(fmt.Sprintf("\t\t\"%s\":%s.%s,\n", SnakeName(field.Name), shortName, field.Name))
+	}
+	buf.WriteString(fmt.Sprintf("\t\t\"version\":%s.Version,\n", shortName))
+	buf.WriteString(fmt.Sprintf("\t\t\"create_time\":%s.CreateTime,\n", shortName))
+	buf.WriteString(fmt.Sprintf("\t\t\"deleted\":%s.Deleted,\n", shortName))
+	buf.WriteString(fmt.Sprintf("\t\t\"delete_time\":%s.DeleteTime,\n", shortName))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\tret := gdb.Model(%s).Where(\"version > ?\", ver).Updates(vals)\n", shortName))
+	buf.WriteString(fmt.Sprintf("\tif ret.Error != nil {\n"))
+	buf.WriteString(fmt.Sprintf("\t\treturn ret.Error\n"))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\tif ret.RowsAffected <= 0 {\n"))
+	buf.WriteString(fmt.Sprintf("\t\treturn DBUpdateNullRecord\n"))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
+	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
+	buf.WriteString(fmt.Sprintf("}\n"))
+
+	// Create
+	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) Create(ctx context.Context, gdb *gorm.DB) error {\n", shortName, t.Name))
+	buf.WriteString(fmt.Sprintf("\terr := gdb.Create(%s).Error\n", shortName))
 	buf.WriteString(fmt.Sprintf("\treturn err\n"))
 	buf.WriteString(fmt.Sprintf("}\n"))
 
