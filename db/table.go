@@ -176,6 +176,14 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 		case "int32":
 			buf.WriteString(fmt.Sprintf("\tval%d, _ := cmd%d.Int64()\n", idx+1, idx+1))
 			buf.WriteString(fmt.Sprintf("\t%s.%s = int32(val%d)\n", shortName, field.GetName(), idx+1))
+		case "float64":
+			buf.WriteString(fmt.Sprintf("\tval%d, _ := cmd%d.Float64()\n", idx+1, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = float64(val%d)\n", shortName, field.GetName(), idx+1))
+		case "float32":
+			buf.WriteString(fmt.Sprintf("\tval%d, _ := cmd%d.Float64()\n", idx+1, idx+1))
+			buf.WriteString(fmt.Sprintf("\t%s.%s = float32(val%d)\n", shortName, field.GetName(), idx+1))
+		default:
+			panic(field.TypeName)
 		}
 	}
 	buf.WriteString(fmt.Sprintf("\treturn nil\n"))
