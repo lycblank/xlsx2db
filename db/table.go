@@ -141,7 +141,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\t\t\"deleted\":%s.Deleted,\n", shortName))
 	buf.WriteString(fmt.Sprintf("\t\t\"delete_time\":%s.DeleteTime,\n", shortName))
 	buf.WriteString(fmt.Sprintf("\t}\n"))
-	buf.WriteString(fmt.Sprintf("\tret := gdb.Model(%s).Where(\"version > ?\", ver).Updates(vals)\n", shortName))
+	buf.WriteString(fmt.Sprintf("\tret := gdb.Model(%s).Where(\"version = ?\", ver).Updates(vals)\n", shortName))
 	buf.WriteString(fmt.Sprintf("\tif ret.Error != nil {\n"))
 	buf.WriteString(fmt.Sprintf("\t\treturn ret.Error\n"))
 	buf.WriteString(fmt.Sprintf("\t}\n"))
@@ -251,6 +251,9 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = v\n", shortName, field.GetName()))
 		} else if field.TypeName == "int32" || field.TypeName == "int64" {
 			buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseInt(v, 10, 64)\n"))
+			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = %s(tmp)\n", shortName, field.GetName(), field.TypeName))
+		} else if field.TypeName == "float64" || field.TypeName == "float32" {
+			buf.WriteString(fmt.Sprintf("\t\t\ttmp, _ := strconv.ParseFloat(v, 64)\n"))
 			buf.WriteString(fmt.Sprintf("\t\t\t%s.%s = %s(tmp)\n", shortName, field.GetName(), field.TypeName))
 		} else {
 			panic(fmt.Sprintf("%s not support", field.TypeName))
