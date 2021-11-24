@@ -57,7 +57,8 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString("\tVersion int32 `gorm:\"column:version\" json:\"version\"`\n")
 	buf.WriteString("\tCreateTime int64 `gorm:\"column:create_time\" json:\"create_time\"`\n")
 	buf.WriteString("\tDeleted int32 `gorm:\"column:deleted;comment:1:表示已删除，0:表示未删除\" json:\"deleted\"`\n")
-	buf.WriteString("\tDeleteTime int64 `gorm:\"column:delete_time\"json:\"delete_time\"`\n")
+	buf.WriteString("\tDeleteTime int64 `gorm:\"column:delete_time\" json:\"delete_time\"`\n")
+	buf.WriteString("\t_ok bool `gorm:\"column:-\" json:\"-\"`\n")
 	buf.WriteString("}\n")
 
 	shortName := SnakeName(t.Name[:1])
@@ -80,7 +81,9 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 	buf.WriteString(fmt.Sprintf("\tif err == nil {\n"))
 	buf.WriteString(fmt.Sprintf("\treturn tmp.(*%s)\n", t.Name))
 	buf.WriteString(fmt.Sprintf("\t}\n"))
-	buf.WriteString(fmt.Sprintf("\tval.FindByDB(context.Background(), gdb)\n"))
+	buf.WriteString(fmt.Sprintf("\tif err := val.FindByDB(context.Background(), gdb); err == nil {\n"))
+	buf.WriteString(fmt.Sprintf("\t\tval._ok = true\n"))
+	buf.WriteString(fmt.Sprintf("\t}\n"))
 	buf.WriteString(fmt.Sprintf("\treturn val\n"))
 	buf.WriteString(fmt.Sprintf("}"))
 
@@ -107,7 +110,7 @@ func (t Table) write(writer io.Writer, pkgName string) error {
 
 	// OK
 	buf.WriteString(fmt.Sprintf("\nfunc (%s *%s) OK() bool {\n", shortName, t.Name))
-	buf.WriteString(fmt.Sprintf("\treturn %s.Deleted == 0\n", shortName))
+	buf.WriteString(fmt.Sprintf("\treturn %s._ok\n", shortName))
 	buf.WriteString(fmt.Sprintf("}\n"))
 
 	// Find
